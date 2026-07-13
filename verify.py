@@ -102,22 +102,12 @@ def export_png_spotcheck(orig_path, redacted_path, out_dir, tag):
     return out_path
 
 
-def main():
-    raw_dir = sys.argv[1] if len(sys.argv) > 1 else "raw"
-    redacted_dir = sys.argv[2] if len(sys.argv) > 2 else "redacted"
-    y0 = int(sys.argv[3]) if len(sys.argv) > 3 else None
-
-    orig_paths = sorted(glob.glob(os.path.join(raw_dir, "*.dcm")))
-    if not orig_paths:
-        print(f"No .dcm files found in {raw_dir!r}")
-        return 1
-
-    if y0 is None:
-        # recompute the same way redact.py does, for a self-contained check
-        from redact import compute_series_cutoff
-        y0, missing = compute_series_cutoff(orig_paths)
-        print(f"(recomputed) series-wide cutoff y0={y0}")
-
+def verify_series(orig_paths, redacted_dir, y0, spotcheck_limit=2):
+    """Verify every original/redacted pair, printing per-file OK/FAIL and an
+    overall verdict. Exports up to `spotcheck_limit` before/after PNGs (into
+    <redacted_dir>/spotchecks) as a representative visual sample -- not
+    every file, to keep this cheap by default; raise the limit for broader
+    review. Returns all_ok (bool)."""
     out_png_dir = os.path.join(redacted_dir, "spotchecks")
     os.makedirs(out_png_dir, exist_ok=True)
 
@@ -141,13 +131,33 @@ def main():
             print(f"--- {base}: OK (transfer syntax + frame count preserved, "
                   f"banner true-black, body intact)")
 
-        if spot_checked < 2:  # keep it to a couple of representative spot-checks
+        if spot_checked < spotcheck_limit:
             png_path = export_png_spotcheck(orig_path, redacted_path, out_png_dir, base)
             print(f"    spot-check PNG: {png_path}")
             spot_checked += 1
 
     print()
     print("=== Overall:", "PASS" if all_ok else "FAIL", "===")
+    return all_ok
+
+
+def main():
+    raw_dir = sys.argv[1] if len(sys.argv) > 1 else "raw"
+    redacted_dir = sys.argv[2] if len(sys.argv) > 2 else "redacted"
+    y0 = int(sys.argv[3]) if len(sys.argv) > 3 else None
+
+    orig_paths = sorted(glob.glob(os.path.join(raw_dir, "*.dcm")))
+    if not orig_paths:
+        print(f"No .dcm files found in {raw_dir!r}")
+        return 1
+
+    if y0 is None:
+        # recompute the same way redact.py does, for a self-contained check
+        from redact import compute_series_cutoff
+        y0, missing = compute_series_cutoff(orig_paths)
+        print(f"(recomputed) series-wide cutoff y0={y0}")
+
+    all_ok = verify_series(orig_paths, redacted_dir, y0, spotcheck_limit=2)
     return 0 if all_ok else 1
 
 

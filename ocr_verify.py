@@ -64,22 +64,18 @@ def postscan_file(path, y0):
     return findings, banner_findings
 
 
-def main():
-    raw_dir = sys.argv[1] if len(sys.argv) > 1 else "raw"
-    redacted_dir = sys.argv[2] if len(sys.argv) > 2 else "redacted"
-    y0 = int(sys.argv[3]) if len(sys.argv) > 3 else None
+def ocr_verify_series(orig_paths, redacted_dir, y0):
+    """Pre-scan originals (flag PHI text extending at/below the banner
+    cutoff) and post-scan redacted output (assert the banner is text-free).
+    Prints both sections + an overall verdict.
 
-    orig_paths = sorted(glob.glob(os.path.join(raw_dir, "*.dcm")))
-    if not orig_paths:
-        print(f"No .dcm files found in {raw_dir!r}")
-        return 1
-
-    if y0 is None:
-        from redact import compute_series_cutoff
-        y0, missing = compute_series_cutoff(orig_paths)
-        print(f"(recomputed) series-wide cutoff y0={y0}")
-
-    print(f"\n=== Pre-scan: {raw_dir} (flagging PHI text the banner cutoff [0:{y0}) won't remove) ===\n")
+    Returns (ok, flags) where flags is a dict with keys
+    'any_below_cutoff', 'any_banner_text', 'any_missing' (all bool), and
+    ok = not (any_banner_text or any_missing or any_below_cutoff) --
+    i.e. a pre-scan below-cutoff WARNING fails the run, same as a survived
+    banner text or a missing redacted file. This is a deliberately strict,
+    PHI-safe default."""
+    print(f"\n=== Pre-scan: originals (flagging PHI text the banner cutoff [0:{y0}) won't remove) ===\n")
     any_below_cutoff = False
     for path in orig_paths:
         base = os.path.basename(path)
@@ -126,6 +122,30 @@ def main():
 
     ok = not (any_banner_text or any_missing or any_below_cutoff)
     print("\n=== Overall:", "PASS" if ok else "FAIL", "===")
+    flags = {
+        "any_below_cutoff": any_below_cutoff,
+        "any_banner_text": any_banner_text,
+        "any_missing": any_missing,
+    }
+    return ok, flags
+
+
+def main():
+    raw_dir = sys.argv[1] if len(sys.argv) > 1 else "raw"
+    redacted_dir = sys.argv[2] if len(sys.argv) > 2 else "redacted"
+    y0 = int(sys.argv[3]) if len(sys.argv) > 3 else None
+
+    orig_paths = sorted(glob.glob(os.path.join(raw_dir, "*.dcm")))
+    if not orig_paths:
+        print(f"No .dcm files found in {raw_dir!r}")
+        return 1
+
+    if y0 is None:
+        from redact import compute_series_cutoff
+        y0, missing = compute_series_cutoff(orig_paths)
+        print(f"(recomputed) series-wide cutoff y0={y0}")
+
+    ok, _flags = ocr_verify_series(orig_paths, redacted_dir, y0)
     return 0 if ok else 1
 
 

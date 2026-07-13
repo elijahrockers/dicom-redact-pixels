@@ -52,6 +52,7 @@ Built for a 30-file series: 29 single-frame `(1,960,1280,3)` RGB files
 ## Repo layout
 
 ```
+pipeline.py             single-command driver: probe + redact + verify + ocr_verify
 probe.py               read-only header/region inspection
 redact.py               cutoff computation + redaction + batch driver
 verify.py               post-redaction pixel-level checks + before/after PNGs
@@ -95,6 +96,37 @@ import pydicom, numpy, gdcm, PIL, easyocr, torch
 print(pydicom.__version__, numpy.__version__, gdcm.Version.GetVersion(), PIL.__version__, torch.__version__)
 "
 ```
+
+## Single-command pipeline
+
+`pipeline.py` runs all four stages (probe → redact → verify → ocr_verify) in
+one process, in-place of running the four scripts manually:
+
+```bash
+.venv/bin/python pipeline.py -i raw -o redacted
+```
+
+| Flag | Default | Purpose |
+|---|---|---|
+| `-i, --input` | `raw` | Directory of source `.dcm` files |
+| `-o, --output` | `redacted` | Directory for redacted output + spotchecks |
+| `--cutoff, --y0` | auto-detect | Manual banner cutoff row override; also used as the fallback for files missing `SequenceOfUltrasoundRegions`. If omitted, computed once (series-wide min) and threaded through every stage |
+| `--spotcheck-limit` | `2` | How many before/after PNGs `verify` exports — raise for broader visual review |
+| `--skip-probe` | off | Skip the read-only recon stage |
+| `--skip-verify` | off | Skip the pixel-level verification stage |
+| `--skip-ocr` | off | Skip the OCR-verify stage — **avoids importing torch/easyocr entirely**, since that import is deferred until this stage actually runs |
+| `--fail-fast` | off | Abort the redact stage on the first file error (default: continue past errors, redact the rest, and report failures at the end) |
+
+**Exit-code contract:** `probe` never gates (informational only); `redact`
+gates on any per-file error; `verify` gates on FAIL; `ocr_verify` gates on
+FAIL — which, matching its standalone behavior, **includes** a pre-scan
+"PHI text extends below the banner cutoff" warning, not just a survived
+banner. Overall exit is `0` only if every stage that ran, passed. The final
+printed summary breaks out exactly which condition failed.
+
+For a first run against real PHI, prefer the staged steps below — running
+each stage by hand on a small subset first has real safety value.
+`pipeline.py` is the convenience one-shot for repeat/known-good runs.
 
 ## Running against a real series (staged rollout)
 

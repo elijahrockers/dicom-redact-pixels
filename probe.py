@@ -93,13 +93,9 @@ def print_info(info):
     print()
 
 
-def main():
-    directory = sys.argv[1] if len(sys.argv) > 1 else "raw"
-    paths = sorted(glob.glob(os.path.join(directory, "*.dcm")))
-    if not paths:
-        print(f"No .dcm files found in {directory!r}")
-        return 1
-
+def run_probe(paths):
+    """Probe every path, printing per-file info + a summary. Returns the
+    list of per-file info dicts (for files that were readable at all)."""
     all_info = []
     for path in paths:
         try:
@@ -127,6 +123,17 @@ def main():
     if min_y0_values:
         print(f"Per-file topmost RegionLocationMinY0 values: {min_y0_values}")
         print(f"Series-wide cutoff candidate (min): {min(min_y0_values)}")
+    return all_info
+
+
+def main():
+    directory = sys.argv[1] if len(sys.argv) > 1 else "raw"
+    paths = sorted(glob.glob(os.path.join(directory, "*.dcm")))
+    if not paths:
+        print(f"No .dcm files found in {directory!r}")
+        return 1
+
+    run_probe(paths)
     return 0
 
 

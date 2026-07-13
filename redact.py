@@ -191,6 +191,37 @@ def redact_file(path, y0, out_dir):
     return out_path, ds.file_meta.TransferSyntaxUID, ds.get("NumberOfFrames", 1)
 
 
+def redact_series(paths, y0, out_dir, continue_on_error=True):
+    """Redact every path in `paths` to `out_dir` at cutoff `y0`.
+
+    Returns (results, errors):
+      results = list of (in_path, out_path, transfer_syntax, n_frames) for
+                files that redacted successfully.
+      errors  = list of (in_path, exception) for files that raised.
+
+    On a per-file exception: if continue_on_error (the default), the error
+    is recorded and the loop keeps going -- one bad file (e.g. an unsupported
+    transfer syntax hitting save_same_encoding's NotImplementedError, or a
+    corrupt/unreadable file) must not abort a whole production batch before
+    the remaining files are processed. If continue_on_error is False, the
+    exception is re-raised immediately (fail-fast).
+    """
+    results = []
+    errors = []
+    for path in paths:
+        try:
+            out_path, ts, n_frames = redact_file(path, y0, out_dir)
+        except Exception as e:
+            print(f"{path} -> ERROR: {type(e).__name__}: {e}")
+            errors.append((path, e))
+            if not continue_on_error:
+                raise
+            continue
+        print(f"{path} -> {out_path}  (frames={n_frames}, ts={ts.name})")
+        results.append((path, out_path, ts, n_frames))
+    return results, errors
+
+
 def main():
     raw_dir = sys.argv[1] if len(sys.argv) > 1 else "raw"
     out_dir = sys.argv[2] if len(sys.argv) > 2 else "redacted"
@@ -208,11 +239,8 @@ def main():
         print(f"WARNING: {len(missing)} file(s) lacked SequenceOfUltrasoundRegions, "
               f"using the series-wide cutoff for them: {missing}")
 
-    for path in paths:
-        out_path, ts, n_frames = redact_file(path, y0, out_dir)
-        print(f"{path} -> {out_path}  (frames={n_frames}, ts={ts.name})")
-
-    return 0
+    _results, errors = redact_series(paths, y0, out_dir, continue_on_error=True)
+    return 1 if errors else 0
 
 
 if __name__ == "__main__":
