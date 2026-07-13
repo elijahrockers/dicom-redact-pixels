@@ -1,0 +1,13 @@
+dicom-phi-scan @ git+https://github.com/elijahrockers/dicom-phi-scan.git@e558a5232f405b4065d6079605a853f3e7c10152
+easyocr==1.7.2
+numpy==2.5.1
+opencv-python-headless==5.0.0.93
+pillow==12.3.0
+pydicom==3.0.2
+pylibjpeg==2.1.0
+pylibjpeg-libjpeg==2.4.0
+python-gdcm==3.2.6
+scikit-image==0.26.0
+scipy==1.18.0
+torch==2.13.0
+torchvision==0.28.0

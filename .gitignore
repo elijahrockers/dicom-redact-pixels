@@ -1,0 +1,11 @@
+# Never commit DICOM files -- these directories hold real or synthetic
+# patient pixel data (raw/ = originals, redacted/ = output). Real Canon
+# files must never end up in version control.
+raw/
+redacted/
+*.dcm
+
+# Python / venv
+.venv/
+__pycache__/
+*.pyc
